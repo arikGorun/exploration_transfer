@@ -103,10 +103,10 @@ def _sample_start_and_goal(sim, seed, number_retries_per_target=100):
     return source_position, target_position
 
 
-def make_gym_env(env_id, seed=0):
+def make_gym_env(env_id, seed=0, render_mode=None):
     if 'MiniGrid' in env_id:
-        env = MiniGridWrapper(gym.make(env_id))
-        env.seed(seed)
+        env = MiniGridWrapper(gym.make(env_id, render_mode=render_mode))
+        # env.seed(seed)
 
     elif 'HabitatNav' in env_id:
         config_file = os.path.join(pathlib.Path(__file__).parent.resolve(),
@@ -141,8 +141,11 @@ def make_gym_env(env_id, seed=0):
         env._env._dataset.episodes[0].goals[0].position = goal_location # Fixed
 
         env = HabitatNavigationWrapper(env)
-        env.seed(seed)
+        # env.seed(seed)
 
+    elif 'procgen' in env_id:
+        env = ProcgenWrapper(gym.make(env_id, apply_api_compatibility=True))
+        # env.seed(seed)
     else:
         raise NotImplementedError('Undefined environment.')
     return env
@@ -166,6 +169,8 @@ def make_environment(flags, actor_id=1):
         dictpath = os.path.expandvars(os.path.expanduser(
             '%s/%s/%s' % (flags.savedir, flags.xpid, str(actor_id) + '.pickle')))
         return EnvironmentHabitat(gym_envs, no_task=flags.no_reward, namefile=dictpath)
+    elif 'procgen' in flags.env:
+        return EnvironmentProcgen(gym_envs, no_task=flags.no_reward, fixed_seed=flags.fixed_seed)
     else:
         raise NotImplementedError('Undefined environment.')
 
@@ -197,8 +202,8 @@ class EnvironmentMiniGrid:
         self.fixed_seed = fixed_seed
         self.no_task = no_task
 
-    def render(self, mode='human'):
-        self.gym_env.render(mode)
+    def render(self):
+        self.gym_env.render()
 
     def get_panorama(self):
         # Use a tmp environment, or its internal step counter will increase
@@ -225,7 +230,7 @@ class EnvironmentMiniGrid:
         initial_real_done = torch.tensor(False, dtype=torch.bool).view(1, 1)
         if self.fixed_seed is not None:
             self.gym_env.seed(seed=self.fixed_seed)
-        initial_frame = _format_observation(self.gym_env.reset())
+        initial_frame = _format_observation(self.gym_env.reset()[0])
         initial_pano = _format_observation(self.get_panorama())
 
         return dict(
@@ -243,7 +248,8 @@ class EnvironmentMiniGrid:
 
     def step(self, action):
         prev_env_str = str(self.gym_env)
-        frame, reward, done, _ = self.gym_env.step(action.item())
+        frame, reward, terminated, truncated, _ = self.gym_env.step(action.item())
+        done = terminated or truncated
         env_str = str(self.gym_env)
 
         # Count interactions
@@ -301,7 +307,7 @@ class EnvironmentMiniGrid:
             self.gym_env = next(self.env_iter)
             if self.fixed_seed is not None:
                 self.gym_env.seed(seed=self.fixed_seed)
-            frame = self.gym_env.reset()
+            frame = self.gym_env.reset()[0]
             self.episode_return = torch.zeros(1, 1)
             self.episode_step = torch.zeros(1, 1, dtype=torch.int32)
             self.episode_win = torch.zeros(1, 1, dtype=torch.int32)
@@ -353,7 +359,8 @@ class HabitatNavigationWrapper(gym.Wrapper):
         return self.env._env._sim.get_agent_state().position
 
     def step(self, action):
-        obs, rwd, done, info = self.env.step(**{'action': action + 1})
+        obs, rwd, terminated, truncated, info = self.env.step(**{'action': action + 1})
+        done = terminated or truncated
         self._last_full_obs = obs
         obs = np.asarray(obs['rgb'])
         info.update({'position': self.get_position()})
@@ -399,7 +406,7 @@ class EnvironmentHabitat:
         self.episode_step = torch.zeros(1, 1, dtype=torch.int32)
         initial_done = torch.tensor(False, dtype=torch.bool).view(1, 1)
         initial_real_done = torch.tensor(False, dtype=torch.bool).view(1, 1)
-        initial_frame = _format_observation(self.gym_env.reset())
+        initial_frame = _format_observation(self.gym_env.reset()[0])
         initial_pano = _format_observation(self.get_panorama())
 
         return dict(
@@ -416,8 +423,8 @@ class EnvironmentHabitat:
             )
 
     def step(self, action):
-        frame, reward, done, info = self.gym_env.step(action.item())
-
+        frame, reward, terminated, truncated, info = self.gym_env.step(action.item())
+        done = terminated or truncated
         # Count true states
         position = np.round(np.round(info['position'], 2) * 20) / 20
         true_state_key = tuple([position[0], position[2]])
@@ -439,7 +446,7 @@ class EnvironmentHabitat:
 
         if done:
             self.gym_env = next(self.env_iter)
-            frame = self.gym_env.reset()
+            frame = self.gym_env.reset()[0]
             self.episode_return = torch.zeros(1, 1)
             self.episode_step = torch.zeros(1, 1, dtype=torch.int32)
 
@@ -471,3 +478,167 @@ class EnvironmentHabitat:
             e.close()
             if e._viewer is not None:
                 e._viewer.close()
+
+# ------------------------------------------------------------------------------
+# Procgen wrappers
+# ------------------------------------------------------------------------------
+
+class ProcgenWrapper(gym.ObservationWrapper):
+    def __init__(self, env):
+        gym.ObservationWrapper.__init__(self, env)
+        self.observation_space = env.observation_space
+
+    def observation(self, observation):
+        return observation
+
+
+class EnvironmentProcgen:
+    def __init__(self, gym_envs, no_task=False, fixed_seed=None):
+        self.all_envs = gym_envs
+        self.env_iter = itertools.cycle(gym_envs)
+        self.gym_env = next(self.env_iter)
+        self.episode_return = None
+        self.episode_step = None
+        self.episode_win = None
+        self.interactions = None
+        self.interactions_dict = dict()
+        self.true_state_count = dict() # Count full observations
+        self.fixed_seed = fixed_seed
+        self.no_task = no_task
+
+    def render(self, mode='human'):
+        self.gym_env.render()
+
+    # def get_panorama(self):
+    #     # Use a tmp environment, or its internal step counter will increase
+    #     env = deepcopy(self.gym_env)
+    #     dir = env.agent_dir
+    #     while env.agent_dir != 1:
+    #         env.step(1) # Have the agent point at the same direction
+    #     pano = []
+    #     for _ in range(4):
+    #         frame, *_ = env.step(1)
+    #         pano.append(frame)
+    #     # while env.agent_dir != dir:
+    #     #     env.step(1) # Restore direction
+    #     return np.array(pano)
+
+    def initial(self):
+        initial_reward = torch.zeros(1, 1)
+        self.episode_return = torch.zeros(1, 1)
+        self.episode_step = torch.zeros(1, 1, dtype=torch.int32)
+        self.episode_win = torch.zeros(1, 1, dtype=torch.int32)
+        self.interactions = torch.zeros(1, 1, dtype=torch.int32)
+        self.interactions_dict = dict()
+        initial_done = torch.tensor(False, dtype=torch.bool).view(1, 1)
+        initial_real_done = torch.tensor(False, dtype=torch.bool).view(1, 1)
+        if self.fixed_seed is not None:
+            self.gym_env.seed(seed=self.fixed_seed)
+        initial_frame = _format_observation(self.gym_env.reset()[0])
+        # initial_pano = _format_observation(self.get_panorama()[0)
+
+        return dict(
+            panorama=torch.zeros(1, 1, dtype=torch.int32),
+            frame=initial_frame,
+            reward=initial_reward,
+            done=initial_done,
+            real_done=initial_real_done,
+            episode_return=self.episode_return,
+            episode_step=self.episode_step,
+            episode_win=self.episode_win,
+            interactions=self.interactions,
+            visited_states=torch.tensor(len(self.true_state_count)).view(1, 1),
+            )
+
+    def step(self, action):
+        prev_env_str = str(self.gym_env)
+        frame, reward, terminated, truncated, _ = self.gym_env.step(action.item())
+        done = terminated or truncated
+        env_str = str(self.gym_env)
+
+        # Count interactions - Figure out how to generalize this
+        if action.item() in [3, 4, 5] and prev_env_str != env_str: # Something changed
+            interaction_key = (prev_env_str, env_str)
+            if interaction_key not in self.interactions_dict: # New unique change
+                self.interactions_dict[interaction_key] = 1
+                self.interactions[0][0] = 1
+            else: # Change is not unique
+                self.interactions_dict[interaction_key] += 1
+                self.interactions[0][0] = 0
+        else:
+            self.interactions[0][0] = 0
+        interactions = self.interactions
+
+        # # Count true states (see FullyObsWrapper from gym_minigrid)
+        # full_grid = self.gym_env.unwrapped.grid.encode()
+        # full_grid[self.gym_env.unwrapped.agent_pos[0]][self.gym_env.unwrapped.agent_pos[1]] = np.array([
+        #     OBJECT_TO_IDX['agent'],
+        #     COLOR_TO_IDX['red'],
+        #     self.gym_env.unwrapped.agent_dir
+        # ])
+        #
+        # true_state_key = tuple(full_grid.flatten())
+        # if true_state_key in self.true_state_count:
+        #     self.true_state_count[true_state_key] += 1
+        # else:
+        #     self.true_state_count.update({true_state_key: 1})
+
+        # Prevent multiple positive rewards if no_task (save only one for stats)
+        if self.episode_win[0][0] == 1:
+            reward = 0
+
+        self.episode_step += 1
+        episode_step = self.episode_step
+
+        self.episode_return += reward
+        episode_return = self.episode_return
+
+        # Prevent multiple wins (if terminal states are ignored)
+        if reward > 0 or self.episode_win[0][0] == 1:
+            self.episode_win[0][0] = 1
+        else:
+            self.episode_win[0][0] = 0
+        episode_win = self.episode_win
+
+        # 'done' is used only for statistics and it is the one returned by the gym environment
+        #        i.e., it is true for terminal states (goal and deaths) and last steps of an episode
+        # 'real_done' is true only for terminal states (pretraining does not have terminal states)
+        real_done = reward > 0 # TODO: check for 'death' states
+        if self.no_task:
+            real_done = False
+
+        #No need for step count because no max steps?
+        if real_done:
+            self.gym_env = next(self.env_iter)
+            if self.fixed_seed is not None:
+                self.gym_env.seed(seed=self.fixed_seed)
+            frame = self.gym_env.reset()[0]
+            self.episode_return = torch.zeros(1, 1)
+            self.episode_step = torch.zeros(1, 1, dtype=torch.int32)
+            self.episode_win = torch.zeros(1, 1, dtype=torch.int32)
+            self.interactions = torch.zeros(1, 1, dtype=torch.int32)
+            self.interactions_dict.clear()
+
+        frame = _format_observation(frame)
+        reward = torch.tensor(reward).view(1, 1)
+        done = torch.tensor(done, dtype=torch.bool).view(1, 1)
+        real_done = torch.tensor(real_done, dtype=torch.bool).view(1, 1)
+        # pano = _format_observation(self.get_panorama()[0])
+
+        return dict(
+            panorama=torch.zeros(1, 1, dtype=torch.int32), # This is four partial obs (panoramic view)
+            frame=frame, # This is a single partial obs (egocentric view)
+            reward=reward,
+            done=done,
+            real_done=real_done,
+            episode_return=episode_return,
+            episode_step=episode_step,
+            episode_win=episode_win,
+            interactions=interactions,
+            visited_states=torch.tensor(len(self.true_state_count)).view(1, 1),
+            )
+
+    def close(self):
+        for e in self.all_envs:
+            e.close()
+

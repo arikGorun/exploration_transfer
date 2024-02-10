@@ -1,7 +1,7 @@
 # https://github.com/facebookresearch/impact-driven-exploration/blob/main/gym-minigrid/gym_minigrid/envs/multiroom_noisytv.py
 
 from gym_minigrid.minigrid import *
-from gym_minigrid.register import register
+# from gym_minigrid.register import register
 
 class Room:
     def __init__(self,
