@@ -1,5 +1,9 @@
+import time
+
 import numpy as np
 import torch
+from gym.wrappers.monitoring.video_recorder import VideoRecorder
+
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
@@ -14,6 +18,7 @@ PolicyNet = models.PolicyNet
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--verbose', action='store_true')
+parser.add_argument('--record', action='store_true')
 parser.add_argument('--checkpoint', type=str)
 parser.add_argument('--n_episodes', type=int, default=100)
 parser.add_argument('--n_seeds', type=int, default=10)
@@ -47,10 +52,11 @@ def test_model(model, keys, flags):
         stats.update({key: []})
     stats.update({'action': []})
 
+
+
     for episode in tqdm(range(flags.n_episodes)):
         if 'interactions' in keys:
             inters = [] # Unique interactions per episode
-        # 1000 max steps because Habitat and MiniGrid store it in different variables, and 1000 is enough for both
         for step in tqdm(range(1000), leave=False, disable=not flags.verbose):
             with torch.no_grad():
                 agent_output, agent_state = model(env_output, agent_state)
@@ -110,7 +116,7 @@ def run(flags):
 
     for env_id in envs:
         flags.env = env_id
-        if 'MiniGrid' in env_id:
+        if 'MiniGrid' in env_id or 'procgen' in env_id:
             flags.no_reward = False
         else:
             flags.no_reward = True
