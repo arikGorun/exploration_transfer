@@ -106,6 +106,7 @@ def create_buffers(obs_shape, num_actions, flags) -> Buffers:
     specs = dict(
         frame=dict(size=(T + 1, *obs_shape), dtype=torch.uint8),
         reward=dict(size=(T + 1,), dtype=torch.float32),
+        bonus_reward=dict(size=(T + 1,), dtype=torch.float32),
         done=dict(size=(T + 1,), dtype=torch.bool),
         real_done=dict(size=(T + 1,), dtype=torch.bool),
         episode_return=dict(size=(T + 1,), dtype=torch.float32),
@@ -169,6 +170,15 @@ def act(i: int, free_queue: mp.SimpleQueue, full_queue: mp.SimpleQueue,
             proj_change = np.random.normal(0, 1, (proj_dim, pano_size, 1))
             bias_change = np.random.uniform(-1, 1, (proj_dim, 1))
 
+        rank1_update = True
+        hidden_dim = 128
+        if flags.model in ['e3b']:
+            if rank1_update:
+                cov_inverse = torch.eye(hidden_dim) * (1.0 / flags.ridge)
+            else:
+                cov = torch.eye(hidden_dim) * flags.ridge
+            outer_product_buffer = torch.empty(hidden_dim, hidden_dim)
+
         while True:
             index = free_queue.get()
             if index is None:
@@ -205,7 +215,7 @@ def act(i: int, free_queue: mp.SimpleQueue, full_queue: mp.SimpleQueue,
                 change_count_dict.clear()
 
             # These do not use counts
-            if flags.model in ['vanilla', 'rnd', 'curiosity']:
+            if flags.model in ['vanilla', 'rnd', 'curiosity', 'e3b']:
                 reset_state_count_dict.clear()
                 reset_change_count_dict.clear()
                 state_count_dict.clear()
@@ -237,10 +247,16 @@ def act(i: int, free_queue: mp.SimpleQueue, full_queue: mp.SimpleQueue,
                 state_count_dict.clear()
                 change_count_dict.clear()
 
+            if env_output['done'][0][0]:
+                actor_step = 0
+                if flags.model in ['e3b']:
+                    if rank1_update:
+                        cov_inverse = torch.eye(hidden_dim) * (1.0 / flags.ridge)
+                    else:
+                        cov_inverse = torch.eye(hidden_dim) * flags.ridge
+
             # Do new rollout
             for t in range(flags.unroll_length):
-                actor_step += 1
-
                 timings.reset()
 
                 with torch.no_grad():
@@ -256,8 +272,9 @@ def act(i: int, free_queue: mp.SimpleQueue, full_queue: mp.SimpleQueue,
 
                 timings.time('step')
 
-                state_key = _hash_key(env_output['frame'], proj_state, bias_state)
-                change_key = _hash_key(env_output['panorama'] - prev_env_output['panorama'], proj_change, bias_change)
+                if flags.model != 'e3b':
+                    state_key = _hash_key(env_output['frame'], proj_state, bias_state)
+                    change_key = _hash_key(env_output['panorama'] - prev_env_output['panorama'], proj_change, bias_change)
 
                 for key in env_output:
                     buffers[key][index][t + 1, ...] = env_output[key]
@@ -265,27 +282,46 @@ def act(i: int, free_queue: mp.SimpleQueue, full_queue: mp.SimpleQueue,
                 for key in agent_output:
                     buffers[key][index][t + 1, ...] = agent_output[key]
 
-                # Update counts (no resets) and compute rewards and stats
-                _update_count(state_key, state_count_dict)
-                _update_count(change_key, change_count_dict)
-                n_s = _get_count(state_key, state_count_dict)
-                n_c = _get_count(change_key, change_count_dict)
-                buffers['state_count'][index][t + 1, ...] = torch.tensor(1 / np.sqrt(n_s))
-                buffers['change_count'][index][t + 1, ...] = torch.tensor(1 / np.sqrt(n_c))
-                buffers['sum_count'][index][t + 1, ...] = torch.tensor(1 / np.sqrt(n_s + n_c))
-                n_s_stats = [len(state_count_dict), np.std(list(state_count_dict.values()))]
-                n_c_stats = [len(change_count_dict), np.std(list(change_count_dict.values()))]
-                buffers['state_count_stats'][index][t + 1, ...] = torch.tensor(n_s_stats)
-                buffers['change_count_stats'][index][t + 1, ...] = torch.tensor(n_c_stats)
+                if flags.model == 'e3b':
+                    # run through policy net to get embeddings
+                    h = agent_output['policy_hiddens'].squeeze().detach()
+                    u = torch.mv(cov_inverse, h)
+                    b = torch.dot(h, u).item()
 
-                # Update counts (with resets) and compute rewards
-                _update_count(state_key, reset_state_count_dict)
-                _update_count(change_key, reset_change_count_dict)
-                n_s = _get_count(state_key, reset_state_count_dict)
-                n_c = _get_count(change_key, reset_change_count_dict)
-                buffers['reset_state_count'][index][t + 1, ...] = torch.tensor(1 / np.sqrt(n_s))
-                buffers['reset_change_count'][index][t + 1, ...] = torch.tensor(1 / np.sqrt(n_c))
-                buffers['reset_sum_count'][index][t + 1, ...] = torch.tensor(1 / np.sqrt(n_s + n_c))
+                    torch.outer(u, u, out=outer_product_buffer)
+                    torch.add(cov_inverse, outer_product_buffer, alpha=-(1. / (1. + b)), out=cov_inverse)
+
+                    if actor_step == 0:
+                        b = 0
+
+                    buffers['bonus_reward'][index][t + 1, ...] = b
+                else:
+                    buffers['bonus_reward'][index][t + 1, ...] = 0
+
+                actor_step += 1
+
+                if flags.model != 'e3b':
+                    # Update counts (no resets) and compute rewards and stats
+                    _update_count(state_key, state_count_dict)
+                    _update_count(change_key, change_count_dict)
+                    n_s = _get_count(state_key, state_count_dict)
+                    n_c = _get_count(change_key, change_count_dict)
+                    buffers['state_count'][index][t + 1, ...] = torch.tensor(1 / np.sqrt(n_s))
+                    buffers['change_count'][index][t + 1, ...] = torch.tensor(1 / np.sqrt(n_c))
+                    buffers['sum_count'][index][t + 1, ...] = torch.tensor(1 / np.sqrt(n_s + n_c))
+                    n_s_stats = [len(state_count_dict), np.std(list(state_count_dict.values()))]
+                    n_c_stats = [len(change_count_dict), np.std(list(change_count_dict.values()))]
+                    buffers['state_count_stats'][index][t + 1, ...] = torch.tensor(n_s_stats)
+                    buffers['change_count_stats'][index][t + 1, ...] = torch.tensor(n_c_stats)
+
+                    # Update counts (with resets) and compute rewards
+                    _update_count(state_key, reset_state_count_dict)
+                    _update_count(change_key, reset_change_count_dict)
+                    n_s = _get_count(state_key, reset_state_count_dict)
+                    n_c = _get_count(change_key, reset_change_count_dict)
+                    buffers['reset_state_count'][index][t + 1, ...] = torch.tensor(1 / np.sqrt(n_s))
+                    buffers['reset_change_count'][index][t + 1, ...] = torch.tensor(1 / np.sqrt(n_c))
+                    buffers['reset_sum_count'][index][t + 1, ...] = torch.tensor(1 / np.sqrt(n_s + n_c))
 
                 # If transfer, clear all counts to save memory
                 if flags.checkpoint is not None and len(flags.checkpoint) > 0:
@@ -295,7 +331,7 @@ def act(i: int, free_queue: mp.SimpleQueue, full_queue: mp.SimpleQueue,
                     change_count_dict.clear()
 
                 # These do not use counts
-                if flags.model in ['vanilla', 'rnd', 'curiosity']:
+                if flags.model in ['vanilla', 'rnd', 'curiosity', 'e3b']:
                     reset_state_count_dict.clear()
                     reset_change_count_dict.clear()
                     state_count_dict.clear()
@@ -327,6 +363,14 @@ def act(i: int, free_queue: mp.SimpleQueue, full_queue: mp.SimpleQueue,
                 if flags.model == 'cbet' and flags.no_reward:
                     state_count_dict.clear()
                     change_count_dict.clear()
+
+                if env_output['done'][0][0]:
+                    actor_step = 0
+                    if flags.model in ['e3b']:
+                        if rank1_update:
+                            cov_inverse = torch.eye(hidden_dim) * (1.0 / flags.ridge)
+                        else:
+                            cov_inverse = torch.eye(hidden_dim) * flags.ridge
 
                 timings.time('write')
 

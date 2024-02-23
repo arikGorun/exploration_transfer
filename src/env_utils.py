@@ -158,8 +158,11 @@ def make_gym_env(env_id, seed=0, record=False):
         # env.seed(seed)
 
     elif 'procgen' in env_id:
-        env = ProcgenWrapper(gym.make(env_id, start_level=seed, num_levels=1, apply_api_compatibility=True, render_mode="rgb_array"))
+
         if record:
+            # record for evaluation purposes, only one seed
+            env = ProcgenWrapper(
+                gym.make(env_id, start_level=seed, num_levels=1, apply_api_compatibility=True, render_mode="rgb_array"))
             env.metadata["semantics.async"] = True
             env.metadata["render_modes"] = ["human", "rgb_array"]
             env.metadata["render_fps"] = 30
@@ -167,7 +170,9 @@ def make_gym_env(env_id, seed=0, record=False):
                 env=env,
                 video_folder="logs/videos/" + env_id + time.strftime("%Y%m%d-%H%M"),
                 name_prefix=str(seed))
-
+        else:
+            env = ProcgenWrapper(
+                gym.make(env_id, start_level=seed, apply_api_compatibility=True, render_mode="rgb_array"))
         # env.seed(seed)
     else:
         raise NotImplementedError('Undefined environment.')

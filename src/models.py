@@ -119,9 +119,10 @@ class PolicyNet(nn.Module):
         policy_logits = policy_logits.view(T, B, self.num_actions)
         baseline = baseline.view(T, B)
         action = action.view(T, B)
-
-        return dict(policy_logits=policy_logits, baseline=baseline,
-                    action=action), core_state
+        outputs = dict(policy_logits=policy_logits, baseline=baseline,
+                    action=action)
+        outputs['policy_hiddens'] = x.detach()
+        return outputs, core_state
 
 
 class StateEmbeddingNet(nn.Module):

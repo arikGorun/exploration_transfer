@@ -34,6 +34,8 @@ parser.add_argument('--checkpoint_num_frames', default=10000000, type=int,
                     help='Number of frames for checkpoint to load.')
 parser.add_argument('--checkpoint', default=None,
                     help='Path to model.tar for loading checkpoint from past run.')
+parser.add_argument('--record', action='store_true',
+                    help='Whether to record the episodes. Also makes the seeds deterministic.')
 
 # Training settings
 parser.add_argument('--disable_checkpoint', action='store_true',
@@ -97,6 +99,8 @@ parser.add_argument('--intrinsic_reward_coef', default=0.5, type=float,
 parser.add_argument('--rnd_loss_coef', default=0.1, type=float,
                     help='Coefficient for the RND loss coefficient relative to the IMPALA one.')
 
+parser.add_argument('--ridge', default=0.1, type=float,
+                    help='Ridge regularizer for e3b intrinsic reward')
 # Singleton environments
 parser.add_argument('--fixed_seed', required=False, type=int,
                     help='Fix the environment seed so that it is \
@@ -106,6 +110,6 @@ parser.add_argument('--no_reward', action='store_true',
 
 # Training models
 parser.add_argument('--model', default='vanilla',
-                    choices=['vanilla', 'count', 'curiosity', 'rnd', 'ride', 'cbet'],
+                    choices=['vanilla', 'count', 'curiosity', 'rnd', 'ride', 'cbet', 'e3b'],
                     help='Model used for training the agent.'
                     )
