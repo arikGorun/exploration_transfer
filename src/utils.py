@@ -106,6 +106,7 @@ def create_buffers(obs_shape, num_actions, flags) -> Buffers:
     specs = dict(
         frame=dict(size=(T + 1, *obs_shape), dtype=torch.uint8),
         reward=dict(size=(T + 1,), dtype=torch.float32),
+        policy_hiddens=dict(size=(T + 1, 1024), dtype=torch.float32),
         bonus_reward=dict(size=(T + 1,), dtype=torch.float32),
         done=dict(size=(T + 1,), dtype=torch.bool),
         real_done=dict(size=(T + 1,), dtype=torch.bool),
@@ -171,7 +172,7 @@ def act(i: int, free_queue: mp.SimpleQueue, full_queue: mp.SimpleQueue,
             bias_change = np.random.uniform(-1, 1, (proj_dim, 1))
 
         rank1_update = True
-        hidden_dim = 128
+        hidden_dim = 1024
         if flags.model in ['e3b']:
             if rank1_update:
                 cov_inverse = torch.eye(hidden_dim) * (1.0 / flags.ridge)
@@ -253,7 +254,7 @@ def act(i: int, free_queue: mp.SimpleQueue, full_queue: mp.SimpleQueue,
                     if rank1_update:
                         cov_inverse = torch.eye(hidden_dim) * (1.0 / flags.ridge)
                     else:
-                        cov_inverse = torch.eye(hidden_dim) * flags.ridge
+                        cov = torch.eye(hidden_dim) * flags.ridge
 
             # Do new rollout
             for t in range(flags.unroll_length):
@@ -370,7 +371,7 @@ def act(i: int, free_queue: mp.SimpleQueue, full_queue: mp.SimpleQueue,
                         if rank1_update:
                             cov_inverse = torch.eye(hidden_dim) * (1.0 / flags.ridge)
                         else:
-                            cov_inverse = torch.eye(hidden_dim) * flags.ridge
+                            cov = torch.eye(hidden_dim) * flags.ridge
 
                 timings.time('write')
 

@@ -93,6 +93,7 @@ class PolicyNet(nn.Module):
         x = self.feat_extract(x)
         x = x.view(T * B, -1)
         core_input = self.fc(x)
+        hidden = core_input
 
         core_input = core_input.view(T, B, -1)
         core_output_list = []
@@ -121,7 +122,7 @@ class PolicyNet(nn.Module):
         action = action.view(T, B)
         outputs = dict(policy_logits=policy_logits, baseline=baseline,
                     action=action)
-        outputs['policy_hiddens'] = x.detach()
+        outputs['policy_hiddens'] = hidden.detach()
         return outputs, core_state
 
 
