@@ -173,7 +173,7 @@ def act(i: int, free_queue: mp.SimpleQueue, full_queue: mp.SimpleQueue,
 
         rank1_update = True
         hidden_dim = 1024
-        if flags.model in ['e3b']:
+        if flags.model in ['e3b', 'RNDxE3B']:
             if rank1_update:
                 cov_inverse = torch.eye(hidden_dim) * (1.0 / flags.ridge)
             else:
@@ -216,7 +216,7 @@ def act(i: int, free_queue: mp.SimpleQueue, full_queue: mp.SimpleQueue,
                 change_count_dict.clear()
 
             # These do not use counts
-            if flags.model in ['vanilla', 'rnd', 'curiosity', 'e3b']:
+            if flags.model in ['vanilla', 'rnd', 'curiosity', 'e3b', 'RNDxE3B']:
                 reset_state_count_dict.clear()
                 reset_change_count_dict.clear()
                 state_count_dict.clear()
@@ -250,7 +250,7 @@ def act(i: int, free_queue: mp.SimpleQueue, full_queue: mp.SimpleQueue,
 
             if env_output['done'][0][0]:
                 actor_step = 0
-                if flags.model in ['e3b']:
+                if flags.model in ['e3b', 'RNDxE3B']:
                     if rank1_update:
                         cov_inverse = torch.eye(hidden_dim) * (1.0 / flags.ridge)
                     else:
@@ -273,7 +273,7 @@ def act(i: int, free_queue: mp.SimpleQueue, full_queue: mp.SimpleQueue,
 
                 timings.time('step')
 
-                if flags.model != 'e3b':
+                if flags.model not in ['e3b', 'RNDxE3B']:
                     state_key = _hash_key(env_output['frame'], proj_state, bias_state)
                     change_key = _hash_key(env_output['panorama'] - prev_env_output['panorama'], proj_change, bias_change)
 
@@ -283,7 +283,7 @@ def act(i: int, free_queue: mp.SimpleQueue, full_queue: mp.SimpleQueue,
                 for key in agent_output:
                     buffers[key][index][t + 1, ...] = agent_output[key]
 
-                if flags.model == 'e3b':
+                if flags.model in ['e3b', 'RNDxE3B']:
                     # run through policy net to get embeddings
                     h = agent_output['policy_hiddens'].squeeze().detach()
                     u = torch.mv(cov_inverse, h)
@@ -301,7 +301,7 @@ def act(i: int, free_queue: mp.SimpleQueue, full_queue: mp.SimpleQueue,
 
                 actor_step += 1
 
-                if flags.model != 'e3b':
+                if flags.model not in ['e3b', 'RNDxE3B']:
                     # Update counts (no resets) and compute rewards and stats
                     _update_count(state_key, state_count_dict)
                     _update_count(change_key, change_count_dict)
@@ -332,7 +332,7 @@ def act(i: int, free_queue: mp.SimpleQueue, full_queue: mp.SimpleQueue,
                     change_count_dict.clear()
 
                 # These do not use counts
-                if flags.model in ['vanilla', 'rnd', 'curiosity', 'e3b']:
+                if flags.model in ['vanilla', 'rnd', 'curiosity', 'e3b', 'RNDxE3B']:
                     reset_state_count_dict.clear()
                     reset_change_count_dict.clear()
                     state_count_dict.clear()
@@ -367,7 +367,7 @@ def act(i: int, free_queue: mp.SimpleQueue, full_queue: mp.SimpleQueue,
 
                 if env_output['done'][0][0]:
                     actor_step = 0
-                    if flags.model in ['e3b']:
+                    if flags.model in ['e3b', 'RNDxE3B']:
                         if rank1_update:
                             cov_inverse = torch.eye(hidden_dim) * (1.0 / flags.ridge)
                         else:

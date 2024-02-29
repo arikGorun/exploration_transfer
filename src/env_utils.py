@@ -640,8 +640,7 @@ class EnvironmentProcgen:
         if self.no_task:
             real_done = False
 
-        #No need for step count because no max steps?
-        if real_done:
+        if done:
             self.gym_env = next(self.env_iter)
             # if self.fixed_seed is not None:
             #     self.gym_env.seed(seed=self.fixed_seed)

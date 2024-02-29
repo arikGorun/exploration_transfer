@@ -62,9 +62,9 @@ def test_model(model, keys, flags):
                 agent_output, agent_state = model(env_output, agent_state)
             env_output = env.step(agent_output['action'])
             stats['action'].append(agent_output['action'].item())
-            assert float(env_output['interactions'].numpy()) <= 1, 'error in inter'
-            if 'interactions' in keys:
-                inters.append(float(env_output['interactions'].numpy()))
+            # assert float(env_output['interactions'].numpy()) <= 1, 'error in inter'
+            # if 'interactions' in keys:
+            #     inters.append(float(env_output['interactions'].numpy()))
             if env_output['done']:
                 break
 
@@ -105,7 +105,7 @@ def run(flags):
         print('Not using CUDA.')
         flags.device = torch.device('cpu')
 
-    keys = ['episode_return', 'episode_step', 'episode_win', 'interactions', 'visited_states']
+    keys = ['episode_return', 'episode_step', 'episode_win']
     envs = flags.to_env.split(',')
 
     stats = dict()

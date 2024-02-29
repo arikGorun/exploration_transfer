@@ -110,6 +110,6 @@ parser.add_argument('--no_reward', action='store_true',
 
 # Training models
 parser.add_argument('--model', default='vanilla',
-                    choices=['vanilla', 'count', 'curiosity', 'rnd', 'ride', 'cbet', 'e3b'],
+                    choices=['vanilla', 'count', 'curiosity', 'rnd', 'ride', 'cbet', 'e3b', 'RNDxE3B'],
                     help='Model used for training the agent.'
                     )

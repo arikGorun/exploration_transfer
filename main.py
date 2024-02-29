@@ -7,6 +7,7 @@ from src.algos.rnd import train as train_rnd
 from src.algos.cbet import train as train_cbet
 from src.algos.ride import train as train_ride
 from src.algos.e3b import train as train_e3b
+from src.algos.RNDxE3B import train as train_RNDxE3B
 
 def main(flags):
     if flags.model == 'vanilla':
@@ -23,6 +24,8 @@ def main(flags):
         train_cbet(flags)
     elif flags.model == 'e3b':
         train_e3b(flags)
+    elif flags.model == 'RNDxE3B':
+        train_RNDxE3B(flags)
     else:
         raise NotImplementedError("This model has not been implemented. "\
         "The available options are: cbet, vanilla, count, curiosity, rnd, ride.")
