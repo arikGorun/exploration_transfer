@@ -38,7 +38,7 @@ parser.add_argument('--record', action='store_true',
                     help='Whether to record the episodes. Also makes the seeds deterministic.')
 parser.add_argument('--frame_stack', type=int, default=4,
                     help='Number of frames per observation.')
-parser.add_argument('--disable_visual_clutter', action='store_false',
+parser.add_argument('--disable_visual_clutter', action='store_true',
                     help='Whether to use custom backgrounds and themes')
 parser.add_argument('--mode', default='hard', choices=['hard', 'easy'], type=str,
                     help='Determines how wide the distribution of levels is, and if there are moving obstacles.\

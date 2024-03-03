@@ -14,8 +14,15 @@ os.environ['OMP_NUM_THREADS'] = '1'
 parser = argparse.ArgumentParser()
 parser.add_argument('--local', action='store_true')
 parser.add_argument('--debug', action='store_true')
-parser.add_argument('--partition', type=str, default='learnfair',
-                    choices=['learnfair', 'devlab', 'prioritylab'])
+parser.add_argument('--partition', type=str, default='studentkillable',
+                    choices=['studentkillable'])
+parser.add_argument('--mode', type=str, default='hard', choices=['hard', 'easy'])
+parser.add_argument('--disable_visual_clutter', action='store_true')
+parser.add_argument('--frame_stack', type=int, default=4)
+parser.add_argument('--no_reward', action='store_true')
+parser.add_argument('--model', default='RNDxE3B',
+                    choices=['vanilla', 'count', 'curiosity', 'rnd', 'ride', 'cbet', 'e3b', 'RNDxE3B']
+                    )
 
 
 intrinsic_reward_coef = {
@@ -26,7 +33,7 @@ intrinsic_reward_coef = {
     'rnd': 0.1,
     'curiosity': 0.1,
     'e3b': 0.1,
-    'RNDxE3B': 0.01
+    'RNDxE3B': 0.005
 }
 
 total_frames = defaultdict(lambda: 50000000)
@@ -169,7 +176,8 @@ for run_args in args_grid:
     job_index += 1
     flags = runner_parser.parse_args(make_command(run_args, uid))
 
-    flags.no_reward = True
+    for k, v in args.__dict__.items():
+        flags.__setattr__(k, v)
 
     print('########## Job {:>4}/{} ##########\nFlags: {}'.format(
         job_index, len(args_grid), flags))
@@ -191,7 +199,7 @@ for run_args in args_grid:
         nodes=1,
         ntasks_per_node=1,
         # job setup
-        job_name='cbet_train-%s-%s-%d' % (run_args['model'], run_args['env'], run_args['run_id']),
+        job_name='RNDxE3B_train-%s-%s-%d' % (run_args['model'], run_args['env'], run_args['run_id']),
         mem="32GB", # 64 for Habitat
         cpus_per_task=40,
         num_gpus=1,

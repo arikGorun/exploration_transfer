@@ -162,8 +162,8 @@ def make_gym_env(env_id, seed=0, record=False, frame_stack=1, disable_visual_clu
         if record:
             # record for evaluation purposes, only one seed
             env = ProcgenWrapper(
-                gym.make(env_id, start_level=seed, num_levels=1, use_backgrounds=disable_visual_clutter,
-                         restrict_themes=not disable_visual_clutter, use_monochrome_assets=not disable_visual_clutter,
+                gym.make(env_id, start_level=seed, num_levels=1, use_backgrounds=not disable_visual_clutter,
+                         restrict_themes=disable_visual_clutter, use_monochrome_assets=disable_visual_clutter,
                          distribution_mode=mode, apply_api_compatibility=True, render_mode="rgb_array"))
             env.metadata["semantics.async"] = True
             env.metadata["render_modes"] = ["human", "rgb_array"]
@@ -174,8 +174,8 @@ def make_gym_env(env_id, seed=0, record=False, frame_stack=1, disable_visual_clu
                 name_prefix=str(seed))
         else:
             env = ProcgenWrapper(
-                gym.make(env_id, start_level=seed, use_backgrounds=disable_visual_clutter,
-                         restrict_themes=not disable_visual_clutter, use_monochrome_assets=not disable_visual_clutter,
+                gym.make(env_id, start_level=seed, use_backgrounds=not disable_visual_clutter,
+                         restrict_themes=disable_visual_clutter, use_monochrome_assets=disable_visual_clutter,
                          distribution_mode=mode, apply_api_compatibility=True, render_mode="rgb_array"))
 
 
