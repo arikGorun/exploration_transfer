@@ -75,7 +75,7 @@ gym.envs.register(
 
 
 def _format_observation(obs):
-    obs = torch.squeeze(torch.tensor(obs))
+    obs = torch.squeeze(torch.tensor(np.array(obs)))
     return obs.view((1, 1) + obs.shape)
 
 
@@ -107,7 +107,7 @@ def _sample_start_and_goal(sim, seed, number_retries_per_target=100):
     return source_position, target_position
 
 
-def make_gym_env(env_id, seed=0, record=False):
+def make_gym_env(env_id, seed=0, record=False, frame_stack=1):
     if 'MiniGrid' in env_id:
         env = MiniGridWrapper(gym.make(env_id, render_mode="rgb_array"))
 
@@ -173,6 +173,9 @@ def make_gym_env(env_id, seed=0, record=False):
         else:
             env = ProcgenWrapper(
                 gym.make(env_id, start_level=seed, apply_api_compatibility=True, render_mode="rgb_array"))
+
+        # if frame_stack > 1:
+        env = FrameStack(env, frame_stack)
         # env.seed(seed)
     else:
         raise NotImplementedError('Undefined environment.')
@@ -186,7 +189,7 @@ def make_environment(flags, actor_id=1):
     # TODO: Habitat does not support naive multi-env like MiniGrid (check VectorEnv)
     # A workaround is to pass a different env to each actor
     for env_name in flags.env.split(','):
-        gym_envs.append(make_gym_env(env_name, seed, record=flags.record))
+        gym_envs.append(make_gym_env(env_name, seed, record=flags.record, frame_stack=flags.frame_stack))
 
     if 'MiniGrid' in flags.env:
         # If fixed_seed is defined, the env seed will be set at every reset(),
@@ -203,6 +206,69 @@ def make_environment(flags, actor_id=1):
     else:
         raise NotImplementedError('Undefined environment.')
 
+
+
+class FrameStack(gym.Wrapper):
+    def __init__(self, env, k):
+        """Stack k last frames.
+        Returns lazy array, which is much more memory efficient.
+        See Also
+        --------
+        baselines.common.atari_wrappers.LazyFrames
+        """
+        gym.Wrapper.__init__(self, env)
+        self.k = k
+        self.frames = deque([], maxlen=k)
+        shp = env.observation_space.shape
+        self.observation_space = spaces.Box(
+            low=0,
+            high=255,
+            shape=(shp[:-1] + (shp[-1] * k,)),
+            dtype=env.observation_space.dtype)
+
+    def reset(self):
+        ob = self.env.reset()[0]
+        for _ in range(self.k):
+            self.frames.append(ob)
+        return self._get_ob()
+
+    def step(self, action):
+        ob, reward, terminated, truncated, info = self.env.step(action)
+        self.frames.append(ob)
+        return self._get_ob(), reward, terminated, truncated, info
+
+    def _get_ob(self):
+        assert len(self.frames) == self.k
+        return LazyFrames(list(self.frames))
+
+
+class LazyFrames(object):
+    def __init__(self, frames):
+        """This object ensures that common frames between the observations are only stored once.
+        It exists purely to optimize memory usage which can be huge for DQN's 1M frames replay
+        buffers.
+        This object should only be converted to numpy array before being passed to the model.
+        You'd not believe how complex the previous solution was."""
+        self._frames = frames
+        self._out = None
+
+    def _force(self):
+        if self._out is None:
+            self._out = np.concatenate(self._frames, axis=-1)
+            self._frames = None
+        return self._out
+
+    def __array__(self, dtype=None):
+        out = self._force()
+        if dtype is not None:
+            out = out.astype(dtype)
+        return out
+
+    def __len__(self):
+        return len(self._force())
+
+    def __getitem__(self, i):
+        return self._force()[i]
 
 # ------------------------------------------------------------------------------
 # MiniGrid wrappers
@@ -564,7 +630,7 @@ class EnvironmentProcgen:
         initial_real_done = torch.tensor(False, dtype=torch.bool).view(1, 1)
         # if self.fixed_seed is not None:
         #     self.gym_env.seed(seed=self.fixed_seed)
-        initial_frame = _format_observation(self.gym_env.reset()[0])
+        initial_frame = _format_observation(self.gym_env.reset())
         # initial_pano = _format_observation(self.get_panorama()[0)
 
         return dict(
@@ -644,7 +710,7 @@ class EnvironmentProcgen:
             self.gym_env = next(self.env_iter)
             # if self.fixed_seed is not None:
             #     self.gym_env.seed(seed=self.fixed_seed)
-            frame = self.gym_env.reset()[0]
+            frame = self.gym_env.reset()
             self.episode_return = torch.zeros(1, 1)
             self.episode_step = torch.zeros(1, 1, dtype=torch.int32)
             self.episode_win = torch.zeros(1, 1, dtype=torch.int32)

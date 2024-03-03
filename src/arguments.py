@@ -36,6 +36,8 @@ parser.add_argument('--checkpoint', default=None,
                     help='Path to model.tar for loading checkpoint from past run.')
 parser.add_argument('--record', action='store_true',
                     help='Whether to record the episodes. Also makes the seeds deterministic.')
+parser.add_argument('--frame_stack', type=int, default=4,
+                    help='Number of frames per observation.')
 
 # Training settings
 parser.add_argument('--disable_checkpoint', action='store_true',

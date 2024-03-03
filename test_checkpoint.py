@@ -18,6 +18,7 @@ PolicyNet = models.PolicyNet
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--verbose', action='store_true')
+parser.add_argument('--frame_stack', type=int, default=4)
 parser.add_argument('--record', action='store_true')
 parser.add_argument('--checkpoint', type=str)
 parser.add_argument('--n_episodes', type=int, default=100)
@@ -110,7 +111,7 @@ def run(flags):
 
     stats = dict()
 
-    tmp_env = make_gym_env(envs[0])
+    tmp_env = make_gym_env(envs[0], frame_stack=flags.frame_stack)
     model = PolicyNet(tmp_env.observation_space.shape, tmp_env.action_space.n, envs[0])
     tmp_env.close()
 

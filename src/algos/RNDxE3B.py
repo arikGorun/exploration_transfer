@@ -61,7 +61,7 @@ def learn(actor_model,
         intrinsic_rewards_rnd *= intrinsic_rewards
 
         rnd_loss = flags.rnd_loss_coef * \
-                   losses.compute_forward_dynamics_loss(predicted_embedding_next, random_embedding_next.detach())
+                   losses.compute_forward_dynamics_loss(predicted_embedding_next.detach(), random_embedding_next.detach())
 
         state_emb = state_embedding_model(batch['frame'][:-1].to(device=flags.device))
         next_state_emb = state_embedding_model(batch['frame'][1:].to(device=flags.device))
@@ -167,7 +167,7 @@ def learn(actor_model,
 
 def train(flags):
     if flags.xpid is None:
-        flags.xpid = 'curiosity-%s' % time.strftime('%Y%m%d-%H%M%S')
+        flags.xpid = 'RNDxE3B-%s' % time.strftime('%Y%m%d-%H%M%S')
     plogger = file_writer.FileWriter(
         xpid=flags.xpid,
         xp_args=flags.__dict__,

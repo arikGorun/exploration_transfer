@@ -131,7 +131,7 @@ def run(flags):
 
     stats = dict()
 
-    tmp_env = make_gym_env(envs[0])
+    tmp_env = make_gym_env(envs[0], frame_stack=flags.frame_stack)
     model = PolicyNet(tmp_env.observation_space.shape, tmp_env.action_space.n, envs[0])
     tmp_env.close()
 

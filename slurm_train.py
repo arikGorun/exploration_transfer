@@ -25,6 +25,8 @@ intrinsic_reward_coef = {
     'ride': 0.1,
     'rnd': 0.1,
     'curiosity': 0.1,
+    'e3b': 0.1,
+    'RNDxE3B': 0.01
 }
 
 total_frames = defaultdict(lambda: 50000000)
@@ -70,7 +72,7 @@ def expand_args(params):
     for exp in expanded:
         # Depending on your machine, there can be problems between CUDA
         # and EGL when using Habitat. To avoid them, use `spawn`.
-        if 'MiniGrid' in exp['env']:
+        if 'MiniGrid' in exp['env'] or 'procgen' in exp['env']:
             exp['mp_start'] = 'fork'
         if 'Habitat' in exp['env']:
             exp['mp_start'] = 'spawn'
@@ -116,18 +118,9 @@ args_grid = dict(
 #      'MiniGrid-MultiRoomNoisyTV-N7-S4-v0',
 #    ],
     env=[
-      'MiniGrid-MultiRoom-N6-v0',
-      'MiniGrid-BlockedUnlockPickup-v0',
-      'MiniGrid-MultiRoom-N12-S10-v0',
-      'MiniGrid-ObstructedMaze-1Dlh-v0',
-      'MiniGrid-ObstructedMaze-2Dlh-v0',
-      'MiniGrid-ObstructedMaze-2Dlhb-v0',
-      'MiniGrid-Unlock-v0',
-      'MiniGrid-UnlockPickup-v0',
-      'MiniGrid-DoorKey-8x8-v0',
-      'MiniGrid-KeyCorridorS3R3-v0',
+      'procgen:procgen-coinrun-v0'
     ],
-    run_id=[1,2,3,4,5,6,7,8,9,10],
+    run_id=[1],
     num_actors=[40],
     num_buffers=[80], # num_buffers >= 2*num_actors
     unroll_length=[100],
@@ -142,7 +135,7 @@ args_grid = dict(
     total_frames=[50000000],
     save_interval=[20],
     checkpoint=[''],
-    model=['cbet','count','ride','curiosity','rnd'],#,'vanilla'],
+    model=['RNDxE3B'],#,'vanilla'],
 )
 
 
@@ -176,7 +169,7 @@ for run_args in args_grid:
     job_index += 1
     flags = runner_parser.parse_args(make_command(run_args, uid))
 
-#    flags.no_reward = True
+    flags.no_reward = True
 
     print('########## Job {:>4}/{} ##########\nFlags: {}'.format(
         job_index, len(args_grid), flags))
@@ -194,8 +187,7 @@ for run_args in args_grid:
 
     executor.update_parameters(
         partition=partition,
-        comment='neurips_camera_ready_10-26',
-        time=4319,
+        comment='',
         nodes=1,
         ntasks_per_node=1,
         # job setup
@@ -203,7 +195,6 @@ for run_args in args_grid:
         mem="32GB", # 64 for Habitat
         cpus_per_task=40,
         num_gpus=1,
-        constraint='pascal',
     )
 
     print('Sending to slurm... ', end='')

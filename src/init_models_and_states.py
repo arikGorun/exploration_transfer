@@ -50,7 +50,7 @@ def init_models_and_states(flags):
         flags.device = torch.device('cpu')
 
     # Only used for action_space and observation_space shapes
-    env = make_gym_env(flags.env.split(',')[0])
+    env = make_gym_env(flags.env.split(',')[0], frame_stack=flags.frame_stack)
     frame_shape = env.observation_space.shape
     n_actions = env.action_space.n
     env.close()

@@ -111,7 +111,7 @@ for run_args in args_grid:
 
     executor.update_parameters(
         partition=partition,
-        comment='neurips_oral_video_10_18',
+        comment='',
         time=1319,
         nodes=1,
         ntasks_per_node=1,
@@ -120,7 +120,6 @@ for run_args in args_grid:
         mem="4GB",
         cpus_per_task=2,
         num_gpus=1,
-        constraint='pascal',
     )
 
     print('Sending to slurm... ', end='')
