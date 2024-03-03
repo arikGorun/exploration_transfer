@@ -107,7 +107,7 @@ def _sample_start_and_goal(sim, seed, number_retries_per_target=100):
     return source_position, target_position
 
 
-def make_gym_env(env_id, seed=0, record=False, frame_stack=1):
+def make_gym_env(env_id, seed=0, record=False, frame_stack=1, disable_visual_clutter=True, mode='hard'):
     if 'MiniGrid' in env_id:
         env = MiniGridWrapper(gym.make(env_id, render_mode="rgb_array"))
 
@@ -162,7 +162,9 @@ def make_gym_env(env_id, seed=0, record=False, frame_stack=1):
         if record:
             # record for evaluation purposes, only one seed
             env = ProcgenWrapper(
-                gym.make(env_id, start_level=seed, num_levels=1, apply_api_compatibility=True, render_mode="rgb_array"))
+                gym.make(env_id, start_level=seed, num_levels=1, use_backgrounds=disable_visual_clutter,
+                         restrict_themes=not disable_visual_clutter, use_monochrome_assets=not disable_visual_clutter,
+                         distribution_mode=mode, apply_api_compatibility=True, render_mode="rgb_array"))
             env.metadata["semantics.async"] = True
             env.metadata["render_modes"] = ["human", "rgb_array"]
             env.metadata["render_fps"] = 30
@@ -172,9 +174,11 @@ def make_gym_env(env_id, seed=0, record=False, frame_stack=1):
                 name_prefix=str(seed))
         else:
             env = ProcgenWrapper(
-                gym.make(env_id, start_level=seed, apply_api_compatibility=True, render_mode="rgb_array"))
+                gym.make(env_id, start_level=seed, use_backgrounds=disable_visual_clutter,
+                         restrict_themes=not disable_visual_clutter, use_monochrome_assets=not disable_visual_clutter,
+                         distribution_mode=mode, apply_api_compatibility=True, render_mode="rgb_array"))
 
-        # if frame_stack > 1:
+
         env = FrameStack(env, frame_stack)
         # env.seed(seed)
     else:
@@ -189,7 +193,8 @@ def make_environment(flags, actor_id=1):
     # TODO: Habitat does not support naive multi-env like MiniGrid (check VectorEnv)
     # A workaround is to pass a different env to each actor
     for env_name in flags.env.split(','):
-        gym_envs.append(make_gym_env(env_name, seed, record=flags.record, frame_stack=flags.frame_stack))
+        gym_envs.append(make_gym_env(env_name, seed, record=flags.record, frame_stack=flags.frame_stack,
+                                     disable_visual_clutter=flags.disable_visual_clutter, mode=flags.mode))
 
     if 'MiniGrid' in flags.env:
         # If fixed_seed is defined, the env seed will be set at every reset(),
