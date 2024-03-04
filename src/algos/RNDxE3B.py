@@ -85,6 +85,7 @@ def learn(actor_model,
             with torch.no_grad():
                 exploration_outputs, unused_state = exploration_model(batch, initial_exploration_agent_state)
                 exploration_logits = exploration_outputs['policy_logits']
+                # decay *= flags.exploration_model_decay TODO make scheduler for decay of exploration weight
         learner_outputs, unused_state = learner_model(batch, initial_agent_state, exploration_logits)
 
         bootstrap_value = learner_outputs['baseline'][-1]
@@ -259,9 +260,12 @@ def train(flags):
             'actor_model_state_dict': actor_model.state_dict(),
             'state_embedding_model_state_dict': state_embedding_model.state_dict(),
             'inverse_dynamics_model_state_dict': inverse_dynamics_model.state_dict(),
+            'random_target_network_state_dict': random_target_network.state_dict(),
+            'predictor_network_state_dict': predictor_network.state_dict(),
             'learner_model_optimizer_state_dict': learner_model_optimizer.state_dict(),
             'state_embedding_optimizer_state_dict': state_embedding_optimizer.state_dict(),
             'inverse_dynamics_optimizer_state_dict': inverse_dynamics_optimizer.state_dict(),
+            'predictor_optimizer_state_dict': predictor_optimizer.state_dict(),
             'scheduler_state_dict': scheduler.state_dict(),
             'flags': vars(flags),
         }, checkpointpath)

@@ -73,9 +73,10 @@ def init_models_and_states(flags):
 
         print("loading model from", flags.checkpoint)
         checkpoint = torch.load(flags.checkpoint)
-        actor_exploration_model = PolicyNet(frame_shape, n_actions, flags.env)
-        actor_exploration_model.load_state_dict(checkpoint["actor_model_state_dict"])
-        learner_exploration_model = deepcopy(actor_exploration_model).to(device=flags.device)
+        if not flags.continue_learning:
+            actor_exploration_model = PolicyNet(frame_shape, n_actions, flags.env)
+            actor_exploration_model.load_state_dict(checkpoint["actor_model_state_dict"])
+            learner_exploration_model = deepcopy(actor_exploration_model).to(device=flags.device)
 
     actor_model.share_memory()
     if actor_exploration_model:
@@ -138,6 +139,34 @@ def init_models_and_states(flags):
         x = np.maximum(flags.total_frames, 1e8)
         return 1 - min(epoch * flags.unroll_length * flags.batch_size, x) / x
     scheduler = torch.optim.lr_scheduler.LambdaLR(learner_model_optimizer, lr_lambda)
+
+    if flags.checkpoint is not None and flags.continue_learning:
+        checkpoint = torch.load(flags.checkpoint)
+        if "actor_model_state_dict" in checkpoint:
+            actor_model.load_state_dict(checkpoint["actor_model_state_dict"])
+            learner_model = deepcopy(actor_model).to(device=flags.device)
+        if "state_embedding_model_state_dict" in checkpoint:
+            state_embedding_model.load_state_dict(checkpoint["state_embedding_model_state_dict"])
+        if "inverse_dynamics_model_state_dict" in checkpoint:
+            inverse_dynamics_model.load_state_dict(checkpoint["inverse_dynamics_model_state_dict"])
+        if "forward_dynamics_model_state_dict" in checkpoint:
+            forward_dynamics_model.load_state_dict(checkpoint["forward_dynamics_model_state_dict"])
+        if "random_target_network_state_dict" in checkpoint:
+            random_target_network.load_state_dict(checkpoint["random_target_network_state_dict"])
+        if "predictor_network_state_dict" in checkpoint:
+            predictor_network.load_state_dict(checkpoint["predictor_network_state_dict"])
+        if "learner_model_optimizer_state_dict" in checkpoint:
+            learner_model_optimizer.load_state_dict(checkpoint["learner_model_optimizer_state_dict"])
+        if "state_embedding_optimizer_state_dict" in checkpoint:
+            state_embedding_optimizer.load_state_dict(checkpoint["state_embedding_optimizer_state_dict"])
+        if "predictor_optimizer_state_dict" in checkpoint:
+            predictor_optimizer.load_state_dict(checkpoint["predictor_optimizer_state_dict"])
+        if "inverse_dynamics_optimizer_state_dict" in checkpoint:
+            inverse_dynamics_optimizer.load_state_dict(checkpoint["inverse_dynamics_optimizer_state_dict"])
+        if "forward_dynamics_optimizer_state_dict" in checkpoint:
+            forward_dynamics_optimizer.load_state_dict(checkpoint["forward_dynamics_optimizer_state_dict"])
+        if "scheduler_state_dict" in checkpoint:
+            scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
 
     buffers = create_buffers(frame_shape, learner_model.num_actions, flags)
 

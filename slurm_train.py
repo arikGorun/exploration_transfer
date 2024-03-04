@@ -23,7 +23,8 @@ parser.add_argument('--no_reward', action='store_true')
 parser.add_argument('--model', default='RNDxE3B',
                     choices=['vanilla', 'count', 'curiosity', 'rnd', 'ride', 'cbet', 'e3b', 'RNDxE3B']
                     )
-
+parser.add_argument('--continue_learning', action='store_true')
+parser.add_argument('--checkpoint', type=str, default='')
 
 intrinsic_reward_coef = {
     'vanilla': 0.0,
@@ -62,7 +63,7 @@ def make_prefix(key):
     return ''.join(w[0] for w in tokens)
 
 
-def expand_args(params):
+def expand_args(params, transfer=True):
     sweep_args = {k: v for k, v in params.items() if isinstance(v, list)}
     # sweep :: [{arg1: val1, arg2: val1}, {arg1: val2, arg2: val2}, ...]
     sweep = [
@@ -85,7 +86,7 @@ def expand_args(params):
             exp['mp_start'] = 'spawn'
 
         # If a checkpoint is passed, we are doing transfer
-        if 'checkpoint' in exp and exp['checkpoint']:
+        if 'checkpoint' in exp and exp['checkpoint'] and transfer:
             checkpoint_dir, pretrain_env = exp['checkpoint'].split('__')
             if checkpoint_dir[-1] != '/':
                 checkpoint_dir += '/'
@@ -159,7 +160,9 @@ def make_command(params, unique_id):
 
 
 args = parser.parse_args()
-args_grid = expand_args(args_grid)
+args_grid['checkpoint'] = [args.checkpoint]
+args.__delattr__('checkpoint')
+args_grid = expand_args(args_grid, not args.continue_learning)
 print(f"Submitting {len(args_grid)} jobs to Slurm...")
 
 uid = datetime.datetime.now().strftime('%H-%M-%S-%f')
@@ -203,6 +206,7 @@ for run_args in args_grid:
         mem="32GB", # 64 for Habitat
         cpus_per_task=40,
         num_gpus=1,
+        time=1440
     )
 
     print('Sending to slurm... ', end='')

@@ -70,6 +70,8 @@ parser.add_argument('--mp_start', default='spawn', type=str,
                     and EGL when using Habitat. To avoid them, use `spawn`.')
 parser.add_argument('--disable_cuda', action='store_true',
                     help='Disable CUDA.')
+parser.add_argument('--continue_learning', action='store_true',
+                    help='Continue learning on same setting and environment from checkpoint')
 
 # Loss settings
 parser.add_argument('--entropy_cost', default=0.0005, type=float,
@@ -104,7 +106,7 @@ parser.add_argument('--intrinsic_reward_coef', default=0.5, type=float,
                     help='Coefficient for the intrinsic reward. \
                     This weighs the intrinsic reaward against the extrinsic one. \
                     Should be larger than 0.')
-parser.add_argument('--rnd_loss_coef', default=0.1, type=float,
+parser.add_argument('--rnd_loss_coef', default=0.01, type=float,
                     help='Coefficient for the RND loss coefficient relative to the IMPALA one.')
 
 parser.add_argument('--ridge', default=0.1, type=float,
