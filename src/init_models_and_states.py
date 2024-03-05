@@ -77,6 +77,10 @@ def init_models_and_states(flags):
             actor_exploration_model = PolicyNet(frame_shape, n_actions, flags.env)
             actor_exploration_model.load_state_dict(checkpoint["actor_model_state_dict"])
             learner_exploration_model = deepcopy(actor_exploration_model).to(device=flags.device)
+        else:  # When continuing to train transfer model
+            actor_exploration_model = PolicyNet(frame_shape, n_actions, flags.env)
+            actor_exploration_model.load_state_dict(checkpoint["actor_exploration_model_state_dict"])
+            learner_exploration_model = deepcopy(actor_exploration_model).to(device=flags.device)
 
     actor_model.share_memory()
     if actor_exploration_model:

@@ -262,6 +262,7 @@ def train(flags):
             'inverse_dynamics_model_state_dict': inverse_dynamics_model.state_dict(),
             'random_target_network_state_dict': random_target_network.state_dict(),
             'predictor_network_state_dict': predictor_network.state_dict(),
+            'actor_exploration_model_state_dict': actor_exploration_model.state_dict(),
             'learner_model_optimizer_state_dict': learner_model_optimizer.state_dict(),
             'state_embedding_optimizer_state_dict': state_embedding_optimizer.state_dict(),
             'inverse_dynamics_optimizer_state_dict': inverse_dynamics_optimizer.state_dict(),
