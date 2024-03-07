@@ -25,6 +25,7 @@ parser.add_argument('--model', default='RNDxE3B',
                     )
 parser.add_argument('--continue_learning', action='store_true')
 parser.add_argument('--checkpoint', type=str, default='')
+parser.add_argument('--intrinsic_reward_coef', type=float, default=0.005)
 
 intrinsic_reward_coef = {
     'vanilla': 0.0,
@@ -181,6 +182,8 @@ for run_args in args_grid:
 
     for k, v in args.__dict__.items():
         flags.__setattr__(k, v)
+    if flags.continue_learning and not flags.no_rewards:
+        flags.__setattr__('intrinsic_reward_coef', 0.0)
 
     print('########## Job {:>4}/{} ##########\nFlags: {}'.format(
         job_index, len(args_grid), flags))
