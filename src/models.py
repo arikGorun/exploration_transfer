@@ -17,11 +17,13 @@ def init(module, weight_init, bias_init, gain=1):
 
 
 class PolicyNet(nn.Module):
-    def __init__(self, observation_shape, num_actions, env):
+    def __init__(self, observation_shape, num_actions, env, exploration_discount=1, discount_update=0.99):
         super(PolicyNet, self).__init__()
         self.observation_shape = observation_shape
         self.num_actions = num_actions
         self.env = env
+        self.exploration_discount = exploration_discount
+        self.discount_update = discount_update
 
         init_ = lambda m: init(m, nn.init.orthogonal_,
             lambda x: nn.init.constant_(x, 0),
@@ -109,7 +111,8 @@ class PolicyNet(nn.Module):
         baseline = self.baseline(core_output)
 
         if exploration_logits is not None:
-            policy_logits += exploration_logits.view(policy_logits.shape)
+            self.exploration_discount *= self.discount_update
+            policy_logits += self.exploration_discount * exploration_logits.view(policy_logits.shape)
 
         if self.training:
             action = torch.multinomial(

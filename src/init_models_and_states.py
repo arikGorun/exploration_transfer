@@ -74,11 +74,11 @@ def init_models_and_states(flags):
         print("loading model from", flags.checkpoint)
         checkpoint = torch.load(flags.checkpoint)
         if not flags.continue_learning:
-            actor_exploration_model = PolicyNet(frame_shape, n_actions, flags.env)
+            actor_exploration_model = PolicyNet(frame_shape, n_actions, flags.env, exploration_discount=flags.discount_exploration_start, discount_update=flags.discount_exploration_rate)
             actor_exploration_model.load_state_dict(checkpoint["actor_model_state_dict"])
             learner_exploration_model = deepcopy(actor_exploration_model).to(device=flags.device)
         else:  # When continuing to train transfer model
-            actor_exploration_model = PolicyNet(frame_shape, n_actions, flags.env)
+            actor_exploration_model = PolicyNet(frame_shape, n_actions, flags.env, exploration_discount=flags.discount_exploration_start, discount_update=flags.discount_exploration_rate)
             actor_exploration_model.load_state_dict(checkpoint["actor_exploration_model_state_dict"])
             learner_exploration_model = deepcopy(actor_exploration_model).to(device=flags.device)
 
@@ -143,6 +143,8 @@ def init_models_and_states(flags):
         x = np.maximum(flags.total_frames, 1e8)
         return 1 - min(epoch * flags.unroll_length * flags.batch_size, x) / x
     scheduler = torch.optim.lr_scheduler.LambdaLR(learner_model_optimizer, lr_lambda)
+
+    # policy_decay_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau()
 
     if flags.checkpoint is not None and flags.continue_learning:
         checkpoint = torch.load(flags.checkpoint)

@@ -182,7 +182,7 @@ for run_args in args_grid:
 
     for k, v in args.__dict__.items():
         flags.__setattr__(k, v)
-    if flags.continue_learning and not flags.no_rewards:
+    if flags.continue_learning and not flags.no_reward:
         flags.__setattr__('intrinsic_reward_coef', 0.0)
 
     print('########## Job {:>4}/{} ##########\nFlags: {}'.format(

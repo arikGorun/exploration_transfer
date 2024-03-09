@@ -92,7 +92,10 @@ parser.add_argument('--epsilon', default=1e-5, type=float,
                     help='RMSProp epsilon.')
 parser.add_argument('--max_grad_norm', default=40., type=float,
                     metavar='MGN', help='Max norm of gradients.')
-
+parser.add_argument('--discount_exploration_rate', default=0.99, type=float,
+                    help='hyperparameter for the policy coefficient dropoff')
+parser.add_argument('--discount_exploration_start', type=float, default=1,
+                    help='In case of continue training, change to last value')
 # Exploration settings
 parser.add_argument('--forward_loss_coef', default=10.0, type=float,
                     help='Coefficient for the forward dynamics loss. \
